@@ -1,0 +1,200 @@
+---
+- name: Setup PC
+  gather_facts: no
+  hosts: mypc
+  vars_prompt:
+
+    - name: ethernet_iface
+      prompt: What is your ethernet interface name?
+      private: no
+
+    - name: wifi_iface
+      prompt: What is your WiFi interface name?
+      private: no
+
+  tasks:
+    - set_fact:
+        home_dir: "/home/{{ ansible_user }}"
+
+    - name: Create User home bin
+      file:
+        dest: "{{ home_dir }}/bin"
+        state: directory
+
+    - name: Add user home bin dir to system-wide $PATH.
+      copy:
+        dest: /etc/profile.d/custom-path.sh
+        content: 'PATH=$PATH:{{ home_dir }}/bin'
+      become: true
+
+    - name: Update the apt package index
+      become: yes
+      apt:
+        name: "*"
+        state: latest
+        update_cache: yes
+        force_apt_get: yes
+
+    - name: install packages
+      apt:
+        pkg:
+          - sudo
+          - vim
+          - xorg
+          - arandr
+          - pcmanfm
+          - wpasupplicant
+          - i3
+          - i3blocks
+          - slim
+          - rofi
+          - xfce4-terminal
+          - feh
+          - xcompmgr
+          - xclip
+          - pulseaudio-utils
+          - graphicsmagick-imagemagick-compat
+          - qalc
+          - openconnect
+          - htop
+      become: true
+
+    - name: setup feh-rand
+      copy:
+        dest: "{{ home_dir }}/bin/feh-rand"
+        mode: "u+x,g+x"
+        content: |
+          #!/bin/bash
+
+          dst="$HOME/Pictures/backgrounds"
+          url='https://source.unsplash.com/1600x900'
+          proxy=$PERSONAL_PROXY
+          filename=$(date +"%Y%m%d_%H%M%S.jpg")
+          
+          export DISPLAY=":0.0"
+          mkdir -p $dst
+          curl -sL -x $proxy $url -o $dst/$filename
+          convert $dst/$filename $dst/$(basename -s '.jpg' $filename).png
+          feh --bg-fill  $dst/$filename
+          find $dst -mtime +1 -exec rm -vf {} \;
+
+    - name: cron for feh-rand
+      cron:
+        special_time: "hourly"
+        job: "{{ home_dir }}/bin/feh-rand"
+
+    #### Install brave
+    - name: Get keyring file
+      get_url:
+        url: https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg
+        dest: "/usr/share/keyrings/brave-browser-archive-keyring.gpg"
+      become: true
+    
+    - name: Add Brave repository to list of repositories
+      apt_repository:
+        repo: deb [signed-by=/usr/share/keyrings/brave-browser-archive-keyring.gpg arch=amd64] https://brave-browser-apt-release.s3.brave.com/ stable main
+        state: present
+      become: true
+
+    - name: Update apt cache
+      apt: update_cache=yes
+      become: true
+    
+    - name: Install Brave
+      apt:
+        name: brave-browser
+        state: present
+      become: true
+
+    ####
+    - name: Install Clipmenu
+      copy:
+        src: "{{ item }}"
+        dest: "{{ home_dir }}/bin"
+        mode: "u+x,g+x"
+      with_items:
+        - files/clipmenu/clipctl
+        - files/clipmenu/clipdel
+        - files/clipmenu/clipmenu
+        - files/clipmenu/clipmenud
+
+    - name: create clipmenud symlink
+      file:
+        src: "{{ home_dir }}/bin/clipmenud"
+        dest: /usr/bin/clipmenud
+        state: link
+      become: true
+
+    - name: create systemd file
+      copy:
+        src: files/clipmenu/clipmenud.service
+        dest: /etc/systemd/system/clipmenud.service
+      notify: start clipmenud
+      become: true
+
+    ####
+    - name: Copy i3 config
+      copy:
+        src: files/config/i3.conf
+        dest: "{{ home_dir }}/.config/i3/config"
+      notify: restart i3
+
+    - name: Copy i3blocks tools
+      copy:
+        src: "{{ item }}"
+        dest: "{{ home_dir }}/.config/i3"
+      with_filetree:
+        - files/i3blocks/*
+      notify: restart i3
+
+    - name: Apply i3blocks config
+      template:
+        src: files/config/i3blocks.conf.j2
+        dest: "{{ home_dir }}/.config/i3/i3blocks.conf"
+
+    ####
+    - name: set Xresources config
+      copy:
+        dest: "{{ home_dir }}/.Xresources"
+        content: |
+          Xft.autohint: 0
+          Xft.antialias: 1
+          Xft.hinting: true
+          Xft.hintstyle: hintslight
+          Xft.dpi: 96
+          Xft.rgba: rgb
+          Xft.lcdfilter: lcddefault
+      notify: restart i3
+
+    ####
+    - name: install sp spotify controller
+      get_url:
+        url: https://gist.githubusercontent.com/streetturtle/fa6258f3ff7b17747ee3/raw/e52c3ed7086461a4e218e3121949e4515c5ccc78/sp
+        dest: "{{ home_dir }}/bin/sp"
+        mode: 'u+x,g+x'
+
+    ####
+    - name: Setup Wifi auto start config
+      copy:
+        dest: /etc/network/interfaces.d/{{ wifi_iface }}.conf
+        content: |
+          auto {{ wifi_iface }}
+          iface {{ wifi_iface }} inet dhcp
+                  wpa-conf {{ home_dir }}/.wpa_supplicant.conf
+      become: true
+    
+
+# set touchpad config
+###
+
+  handlers:
+    - name: restart i3
+      shell: i3-msg -t command restart
+      args:
+        executable: /bin/bash
+
+    - name: start clipmenud
+      systemd:
+        name: clipmenud
+        state: started
+      become: true

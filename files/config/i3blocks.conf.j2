@@ -1,0 +1,58 @@
+separator_block_width=14
+
+[public-ip]
+command=ping -n -c 1 1.1.1.1 | grep 'time=' | sed 's/.*time=\([0-9.]\+\) /\1/'
+interval=3
+
+[public-ip]
+command=wget -qO - ipv4.icanhazip.com
+interval=120
+
+[network]
+label=E:
+command=~/.config/i3/network {{ ethernet_iface }}
+interval=3
+color=#7c81c5
+
+[network]
+label=W:
+command=~/.config/i3/network {{ wifi_iface }}
+interval=3
+color=#7c81c5
+
+[disk-root]
+label=/:
+command=python3 -c "import os; print(os.popen('df -h | grep /\$').read().split()[3])"
+interval=30
+color=#1793D1
+
+[disk-home]
+command=python3 -c "import os; print(os.popen('df -h | grep /home\$').read().split()[3])"
+interval=30
+color=#859900
+
+[temperature]
+command=~/.config/i3/temperature
+interval=5
+color=#b58900
+
+[memory]
+command=python3 -c "import os; print(os.popen('free -h | grep Mem:').read().split()[2])"
+interval=5
+color=#F6DE02
+
+[cpu]
+command=~/.config/i3/cpu_usage
+interval=3
+color=#6c71c4
+
+[volume]
+command=~/.config/i3/volume
+interval=1
+signal=10
+color=#d70a53
+
+[time]
+command=date '+%Y-%m-%d %H:%M:%S %p'
+interval=1
+color=#50C878
