@@ -1,32 +1,41 @@
 ---
 - name: Setup PC
-  gather_facts: no
   hosts: mypc
-  vars_prompt:
+  vars:
+    wifi_iface: wlp0s20f3
+    ethernet_iface: enp0s31f6
 
-    - name: ethernet_iface
-      prompt: What is your ethernet interface name?
-      private: no
+  pre_tasks:
+    - fail:
+        msg: Set wifi_iface variables in playbook and rerun.
+      when:
+        - (wifi_iface is not defined) or (wifi_iface|length == 0)
+      tags: ["i3_config","setup_wifi"]
 
-    - name: wifi_iface
-      prompt: What is your WiFi interface name?
-      private: no
+    - fail:
+        msg: Set ethernet_iface variables in playbook and rerun.
+      when:
+        - (ethernet_iface is not defined) or (ethernet_iface|length == 0)
+      tags: ["i3_config","setup_wifi"]
 
-  tasks:
     - set_fact:
         home_dir: "/home/{{ ansible_user }}"
+      tags: always
 
     - name: Create User home bin
       file:
         dest: "{{ home_dir }}/bin"
         state: directory
+      tags: always
 
     - name: Add user home bin dir to system-wide $PATH.
       copy:
         dest: /etc/profile.d/custom-path.sh
         content: 'PATH=$PATH:{{ home_dir }}/bin'
       become: true
+      tags: always
 
+  tasks:
     - name: Update the apt package index
       become: yes
       apt:
@@ -34,8 +43,9 @@
         state: latest
         update_cache: yes
         force_apt_get: yes
+      tags: install_pkgs
 
-    - name: install packages
+    - name: Install packages
       apt:
         pkg:
           - sudo
@@ -52,17 +62,20 @@
           - feh
           - xcompmgr
           - xclip
+          - xsel
           - pulseaudio-utils
           - graphicsmagick-imagemagick-compat
           - qalc
           - openconnect
           - htop
+          - gcc
       become: true
+      tags: install_pkgs
 
-    - name: setup feh-rand
+    - name: Setup feh-rand
       copy:
         dest: "{{ home_dir }}/bin/feh-rand"
-        mode: "u+x,g+x"
+        mode: 0755
         content: |
           #!/bin/bash
 
@@ -78,7 +91,7 @@
           feh --bg-fill  $dst/$filename
           find $dst -mtime +1 -exec rm -vf {} \;
 
-    - name: cron for feh-rand
+    - name: Cron for feh-rand
       cron:
         special_time: "hourly"
         job: "{{ home_dir }}/bin/feh-rand"
@@ -89,48 +102,67 @@
         url: https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg
         dest: "/usr/share/keyrings/brave-browser-archive-keyring.gpg"
       become: true
+      tags: install_brave
     
     - name: Add Brave repository to list of repositories
       apt_repository:
         repo: deb [signed-by=/usr/share/keyrings/brave-browser-archive-keyring.gpg arch=amd64] https://brave-browser-apt-release.s3.brave.com/ stable main
         state: present
       become: true
+      tags: install_brave
 
     - name: Update apt cache
       apt: update_cache=yes
       become: true
+      tags: install_brave
     
     - name: Install Brave
       apt:
         name: brave-browser
         state: present
       become: true
+      tags: install_brave
 
     ####
     - name: Install Clipmenu
       copy:
         src: "{{ item }}"
-        dest: "{{ home_dir }}/bin"
-        mode: "u+x,g+x"
+        dest: "/usr/bin"
+        mode: 0755
       with_items:
         - files/clipmenu/clipctl
         - files/clipmenu/clipdel
         - files/clipmenu/clipmenu
         - files/clipmenu/clipmenud
-
-    - name: create clipmenud symlink
-      file:
-        src: "{{ home_dir }}/bin/clipmenud"
-        dest: /usr/bin/clipmenud
-        state: link
       become: true
+      tags: install_clipmenu
 
-    - name: create systemd file
+    - name: Create systemd file
       copy:
         src: files/clipmenu/clipmenud.service
         dest: /etc/systemd/system/clipmenud.service
       notify: start clipmenud
       become: true
+      tags: install_clipmenu
+
+    - name: Get clipnotify
+      git:
+        repo: https://github.com/cdown/clipnotify
+        dest: /tmp/clipnotify
+      tags: install_clipmenu
+
+    - name: Build clipnotify
+      shell:
+        cmd: make
+        chdir: /tmp/clipnotify
+      tags: install_clipmenu
+
+    - name: Install clipnotify
+      copy:
+        src: /tmp/clipnotify/clipnotify
+        dest: /usr/bin/
+        mode: "0755"
+      tags: install_clipmenu
 
     ####
     - name: Copy i3 config
@@ -138,6 +170,7 @@
         src: files/config/i3.conf
         dest: "{{ home_dir }}/.config/i3/config"
       notify: restart i3
+      tags: i3_config
 
     - name: Copy i3blocks tools
       copy:
@@ -146,14 +179,17 @@
       with_filetree:
         - files/i3blocks/*
       notify: restart i3
+      tags: i3_config
 
     - name: Apply i3blocks config
       template:
         src: files/config/i3blocks.conf.j2
         dest: "{{ home_dir }}/.config/i3/i3blocks.conf"
+      notify: restart i3
+      tags: i3_config
 
     ####
-    - name: set Xresources config
+    - name: Set Xresources config
       copy:
         dest: "{{ home_dir }}/.Xresources"
         content: |
@@ -165,13 +201,14 @@
           Xft.rgba: rgb
           Xft.lcdfilter: lcddefault
       notify: restart i3
+      tags: i3_config
 
     ####
-    - name: install sp spotify controller
+    - name: Install sp spotify controller
       get_url:
         url: https://gist.githubusercontent.com/streetturtle/fa6258f3ff7b17747ee3/raw/e52c3ed7086461a4e218e3121949e4515c5ccc78/sp
         dest: "{{ home_dir }}/bin/sp"
-        mode: 'u+x,g+x'
+        mode: 0755
 
     ####
     - name: Setup Wifi auto start config
@@ -182,6 +219,7 @@
           iface {{ wifi_iface }} inet dhcp
                   wpa-conf {{ home_dir }}/.wpa_supplicant.conf
       become: true
+      tags: setup_wifi
     
 
 # set touchpad config
@@ -189,7 +227,7 @@
 
   handlers:
     - name: restart i3
-      shell: i3-msg -t command restart
+      shell: bash -c "i3-msg -t command restart -s $(ls $XDG_RUNTIME_DIR/i3/ipc-socket.*)"
       args:
         executable: /bin/bash
 
