@@ -43,7 +43,7 @@
         state: latest
         update_cache: yes
         force_apt_get: yes
-      tags: install_pkgs
+      tags: always
 
     - name: Install packages
       apt:
@@ -51,6 +51,7 @@
           - sudo
           - vim
           - xorg
+          - xorg-dev
           - arandr
           - pcmanfm
           - wpasupplicant
@@ -69,13 +70,14 @@
           - openconnect
           - htop
           - gcc
+          - make
       become: true
-      tags: install_pkgs
+      tags: always
 
     - name: Setup feh-rand
       copy:
         dest: "{{ home_dir }}/bin/feh-rand"
-        mode: 0755
+        mode: "0755"
         content: |
           #!/bin/bash
 
@@ -128,7 +130,7 @@
       copy:
         src: "{{ item }}"
         dest: "/usr/bin"
-        mode: 0755
+        mode: "0755"
       with_items:
         - files/clipmenu/clipctl
         - files/clipmenu/clipdel
@@ -158,10 +160,10 @@
       tags: install_clipmenu
 
     - name: Install clipnotify
-      copy:
-        src: /tmp/clipnotify/clipnotify
-        dest: /usr/bin/
-        mode: "0755"
+      shell:
+        cmd: cp ./clipnotify /usr/bin
+        chdir: /tmp/clipnotify
+      become: true
       tags: install_clipmenu
 
     ####
@@ -175,9 +177,10 @@
     - name: Copy i3blocks tools
       copy:
         src: "{{ item }}"
-        dest: "{{ home_dir }}/.config/i3"
-      with_filetree:
-        - files/i3blocks/*
+        dest: "{{ home_dir }}/.config/i3/"
+        mode: "0755"
+      with_items:
+        - ./files/i3blocks/
       notify: restart i3
       tags: i3_config
 
@@ -208,7 +211,7 @@
       get_url:
         url: https://gist.githubusercontent.com/streetturtle/fa6258f3ff7b17747ee3/raw/e52c3ed7086461a4e218e3121949e4515c5ccc78/sp
         dest: "{{ home_dir }}/bin/sp"
-        mode: 0755
+        mode: "0755"
 
     ####
     - name: Setup Wifi auto start config
