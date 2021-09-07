@@ -142,9 +142,19 @@
     - name: Create systemd file
       copy:
         src: files/clipmenu/clipmenud.service
-        dest: /etc/systemd/system/clipmenud.service
+        dest: /usr/lib/systemd/system/clipmenud.service
       notify: start clipmenud
       become: true
+      tags: install_clipmenu
+      
+    - name: enable clipmenud service
+      systemd:
+        name: clipmenud
+        daemon_reload: yes
+        state: started
+        scope: user
+      environment:
+        XDG_RUNTIME_DIR: "/run/user/{{ ansible_user_id }}"
       tags: install_clipmenu
 
     - name: Get clipnotify
