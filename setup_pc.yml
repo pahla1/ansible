@@ -72,6 +72,9 @@
           - htop
           - gcc
           - make
+          - pm-utils
+          - jq
+          - pavucontrol
       become: true
       tags: always
 
