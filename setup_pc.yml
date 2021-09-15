@@ -75,6 +75,7 @@
           - pm-utils
           - jq
           - pavucontrol
+          - lm-sensors
       become: true
       tags: always
 
