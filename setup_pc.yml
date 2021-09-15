@@ -76,6 +76,7 @@
           - jq
           - pavucontrol
           - lm-sensors
+          - fonts-font-awesome
       become: true
       tags: always
 
