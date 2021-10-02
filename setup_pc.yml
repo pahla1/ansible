@@ -78,6 +78,7 @@
           - pavucontrol
           - lm-sensors
           - fonts-font-awesome
+          - wireless-tools
       become: true
       tags: always
 
