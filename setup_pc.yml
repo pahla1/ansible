@@ -1,6 +1,7 @@
 ---
 - name: Setup PC
   hosts: mypc
+  #connection: local
   vars:
     wifi_iface: wlp0s20f3
     ethernet_iface: enp0s31f6
@@ -245,16 +246,16 @@
     ####
     - name: Setup touchpad tap and Natural Scrolling
       copy:
-        dest: {{ home_dir }}/.xsessionrc
+        dest: "{{ home_dir }}/.xsessionrc"
         content: |
           # run "xinput list" to find touchpad device name and
           # "xinput list-props '<touchpad device name>'" to list its properties
           xinput set-prop "SynPS/2 Synaptics TouchPad" "libinput Tapping Enabled" 1
           xinput set-prop "SynPS/2 Synaptics TouchPad" "libinput Natural Scrolling Enabled" 1
 
-# setup backlight
-# https://gitlab.com/wavexx/acpilight/-/tree/master
-###
+    - name: setup backlight
+      debug:
+        msg: "To setup backlight check the link: https://gitlab.com/wavexx/acpilight/-/tree/master"
 
   handlers:
     - name: restart i3
